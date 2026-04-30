@@ -7,17 +7,17 @@
             <p class="text-gray-500 text-sm mt-0.5">{{ $pages->total() }} page(s) generated</p>
         </div>
         <a href="{{ route('sales-pages.create') }}" class="btn-primary">
-            <span aria-hidden="true">⚡</span> Generate New
+            <i class="bi bi-plus-circle" aria-hidden="true"></i> Generate New
         </a>
     </div>
 
     @if($pages->isEmpty())
         <div class="card text-center py-16">
-            <div class="text-5xl mb-4" aria-hidden="true">📄</div>
+            <div class="text-5xl mb-4" aria-hidden="true"><i class="bi bi-file-earmark-text text-gray-300"></i></div>
             <h2 class="text-xl font-bold text-gray-700 mb-2">No pages yet</h2>
             <p class="text-gray-400 mb-6">Generate your first AI sales page in under 30 seconds.</p>
             <a href="{{ route('sales-pages.create') }}" class="btn-primary inline-flex">
-                <span aria-hidden="true">⚡</span> Create First Page
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Create First Page
             </a>
         </div>
     @else
@@ -42,16 +42,16 @@
 
                     <div class="flex gap-2">
                         <a href="{{ route('sales-pages.show', $page) }}" class="btn-primary flex-1 justify-center text-sm py-2">
-                            <span aria-hidden="true">👁</span> Preview
+                            <i class="bi bi-eye" aria-hidden="true"></i> Preview
                         </a>
                         <a href="{{ route('sales-pages.export', $page) }}" class="btn-secondary text-sm py-2 px-3" title="Export HTML" aria-label="Export HTML">
-                            <span aria-hidden="true">↓</span>
+                            <i class="bi bi-download" aria-hidden="true"></i>
                         </a>
                         <form method="POST" action="{{ route('sales-pages.destroy', $page) }}"
                             onsubmit="return confirm('Delete this page?')">
                             @csrf @method('DELETE')
                             <button type="submit" class="btn-danger text-sm py-2 px-3" title="Delete" aria-label="Delete">
-                                <span aria-hidden="true">🗑</span>
+                                <i class="bi bi-trash" aria-hidden="true"></i>
                             </button>
                         </form>
                     </div>

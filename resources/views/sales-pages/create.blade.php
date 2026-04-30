@@ -55,15 +55,15 @@
                 <span class="label">Page Style</span>
                 <div class="grid grid-cols-3 gap-3 mt-1">
                     @foreach([
-                        'modern'  => ['🎨', 'Modern',  'Clean & professional'],
-                        'minimal' => ['⬜', 'Minimal', 'Black & white'],
-                        'bold'    => ['🔥', 'Bold',    'Dark & dramatic'],
+                        'modern'  => ['bi-grid-1x2', 'Modern',  'Clean & professional'],
+                        'minimal' => ['bi-circle-half', 'Minimal', 'Black & white'],
+                        'bold'    => ['bi-lightning-charge-fill', 'Bold', 'Dark & dramatic'],
                     ] as $val => [$icon, $label, $desc])
                         <label class="cursor-pointer">
                             <input type="radio" name="style" value="{{ $val }}" class="sr-only peer"
                                 {{ old('style', 'modern') === $val ? 'checked' : '' }}>
                             <div class="border-2 rounded-xl p-3 text-center transition peer-checked:border-brand peer-checked:bg-brand/5 border-gray-200 hover:border-gray-300">
-                                <div class="text-2xl mb-1" aria-hidden="true">{{ $icon }}</div>
+                                <div class="text-2xl mb-1" aria-hidden="true"><i class="bi {{ $icon }}"></i></div>
                                 <div class="font-semibold text-sm">{{ $label }}</div>
                                 <div class="text-xs text-gray-400">{{ $desc }}</div>
                             </div>
@@ -73,7 +73,7 @@
             </div>
 
             <button type="submit" id="submitBtn" class="btn-primary w-full justify-center py-4 text-base">
-                <span id="btnIcon" aria-hidden="true">⚡</span>
+                <i id="btnIcon" class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
                 <span id="btnText">Generate Sales Page</span>
             </button>
             <p class="text-center text-xs text-gray-400 mt-2">Usually takes 10–20 seconds</p>
@@ -86,8 +86,8 @@
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
             btn.classList.add('opacity-75');
-            document.getElementById('btnIcon').textContent = '⏳';
-            document.getElementById('btnText').textContent = 'AI is writing your page...';
+            document.getElementById('btnIcon').className = 'bi bi-hourglass-split';
+            document.getElementById('btnText').textContent = 'Generating your page...';
         });
     </script>
     @endpush

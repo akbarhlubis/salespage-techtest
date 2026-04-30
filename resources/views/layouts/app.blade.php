@@ -9,6 +9,7 @@
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -29,7 +30,7 @@
     @if(session('success'))
         <div class="max-w-6xl mx-auto px-4 mt-4">
             <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-                <span aria-hidden="true">✓</span> {{ session('success') }}
+                <i class="bi bi-check-circle-fill" aria-hidden="true"></i> {{ session('success') }}
             </div>
         </div>
     @endif
@@ -38,7 +39,7 @@
         <div class="max-w-6xl mx-auto px-4 mt-4">
             <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">
                 @foreach($errors->all() as $error)
-                    <div><span aria-hidden="true">⚠</span> {{ $error }}</div>
+                    <div><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> {{ $error }}</div>
                 @endforeach
             </div>
         </div>

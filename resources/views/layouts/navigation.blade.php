@@ -4,7 +4,7 @@
             {{-- Logo + primary links --}}
             <div class="flex items-center gap-6">
                 <a href="{{ route('sales-pages.index') }}" class="font-bold text-lg flex items-center gap-2">
-                    <span aria-hidden="true">⚡</span><span>SalesPage AI</span>
+                    <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i><span>SalesPage AI</span>
                 </a>
 
                 <div class="hidden sm:flex items-center gap-1">
@@ -34,6 +34,10 @@
                     <x-slot name="content">
                         <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Profile') }}
+                        </x-dropdown-link>
+
+                        <x-dropdown-link :href="route('settings.edit')">
+                            {{ __('Settings') }}
                         </x-dropdown-link>
 
                         <form method="POST" action="{{ route('logout') }}">
@@ -75,6 +79,7 @@
             <div class="text-white/90 text-sm font-medium">{{ Auth::user()->name }}</div>
             <div class="text-white/50 text-xs mb-2">{{ Auth::user()->email }}</div>
             <a href="{{ route('profile.edit') }}" class="block px-3 py-2 rounded-lg text-sm hover:bg-white/10">Profile</a>
+            <a href="{{ route('settings.edit') }}" class="block px-3 py-2 rounded-lg text-sm hover:bg-white/10">Settings</a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="block w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-white/10">Log Out</button>
