@@ -20,59 +20,89 @@
     </form>
 </div>
 
-{{-- Regenerate section bar (Bonus Feature) --}}
+{{-- Regenerate section bar --}}
 <div class="card mb-4 bg-indigo-50 border-indigo-100">
-    <p class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">✨ Regenerate Section</p>
-    <div class="flex flex-wrap gap-2">
+    <p class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">✨ Regenerate Section</p>
+    <div class="flex flex-wrap gap-2" id="regenButtons">
         @foreach(['headline' => '💬 Headline', 'sub_headline' => '📝 Sub-headline', 'description' => '📖 Description', 'benefits' => '⭐ Benefits', 'cta' => '🎯 CTA'] as $key => $label)
         <button onclick="regenerateSection('{{ $key }}')"
-            class="text-xs bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition font-medium"
-            id="regen-{{ $key }}">
+            class="regen-btn text-xs bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition font-medium disabled:opacity-50"
+            id="regen-{{ $key }}" data-label="{{ $label }}">
             {{ $label }}
         </button>
         @endforeach
     </div>
+    {{-- Progress indicator --}}
+    <div id="regenStatus" class="hidden mt-3 flex items-center gap-2 text-sm text-indigo-600">
+        <div class="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+        <span id="regenStatusText">Regenerating...</span>
+    </div>
 </div>
 
 {{-- Live Preview iframe --}}
-<div class="rounded-2xl overflow-hidden border border-gray-200 shadow-lg" style="height:80vh">
+<div class="rounded-2xl overflow-hidden border border-gray-200 shadow-lg" style="height:80vh; position:relative;">
+    {{-- Loading overlay --}}
+    <div id="iframeLoading" class="absolute inset-0 bg-white flex items-center justify-center z-10 hidden">
+        <div class="text-center">
+            <div class="animate-spin w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p class="text-sm text-gray-500">Updating preview...</p>
+        </div>
+    </div>
     <iframe id="previewFrame" srcdoc="" class="w-full h-full border-0"></iframe>
 </div>
 
 <script>
-    // Load the generated HTML into the iframe
-    const html = {{ Js::from($salesPage->generated_html) }};
-    document.getElementById('previewFrame').srcdoc = html;
+    // Load generated HTML into iframe on page load
+    const generatedHtml = {{ Js::from($salesPage->generated_html) }};
+    document.getElementById('previewFrame').srcdoc = generatedHtml;
 
-    // Regenerate section via AJAX
+    // Regenerate section — no page reload
     async function regenerateSection(section) {
         const btn = document.getElementById('regen-' + section);
-        const orig = btn.textContent;
-        btn.textContent = '⏳ Regenerating...';
-        btn.disabled = true;
+        const label = btn.dataset.label;
+        const allBtns = document.querySelectorAll('.regen-btn');
+
+        // Disable all buttons
+        allBtns.forEach(b => b.disabled = true);
+
+        // Show status
+        const status = document.getElementById('regenStatus');
+        const statusText = document.getElementById('regenStatusText');
+        status.classList.remove('hidden');
+        statusText.textContent = `Regenerating ${label}...`;
+
+        // Show iframe loading overlay
+        document.getElementById('iframeLoading').classList.remove('hidden');
 
         try {
             const resp = await fetch('{{ route('sales-pages.regenerate-section', $salesPage) }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({ section })
             });
 
             const data = await resp.json();
-            if (data.success) {
-                // Reload the iframe with updated content
-                location.reload();
+
+            if (data.success && data.html) {
+                // Update iframe directly — no reload!
+                document.getElementById('previewFrame').srcdoc = data.html;
+                statusText.textContent = `✓ ${label} updated!`;
+                setTimeout(() => status.classList.add('hidden'), 2000);
             } else {
-                alert('Regeneration failed: ' + data.message);
+                statusText.textContent = `✗ Failed: ${data.message || 'Unknown error'}`;
+                setTimeout(() => status.classList.add('hidden'), 3000);
             }
         } catch(e) {
-            alert('Error: ' + e.message);
+            statusText.textContent = `✗ Error: ${e.message}`;
+            setTimeout(() => status.classList.add('hidden'), 3000);
         } finally {
-            btn.textContent = orig;
-            btn.disabled = false;
+            // Re-enable all buttons
+            allBtns.forEach(b => b.disabled = false);
+            document.getElementById('iframeLoading').classList.add('hidden');
         }
     }
 </script>

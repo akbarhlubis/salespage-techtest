@@ -109,14 +109,11 @@ class SalesPageController extends Controller
                 $salesPage->generated_data
             );
 
-            // Ambil data dan pastikan semua nested key tetap array
-            $data = $salesPage->generated_data;
-            $data = $this->normalizeData($data);
+            $data = $this->normalizeData($salesPage->generated_data);
 
-            // Update section yang diregenerasi
             if (in_array($section, ['benefits', 'cta'])) {
                 $decoded = json_decode($newContent, true);
-                $data[$section] = $decoded ?? $data[$section]; // fallback ke data lama kalau JSON invalid
+                $data[$section] = $decoded ?? $data[$section];
             } else {
                 $data[$section] = $newContent;
             }
@@ -124,18 +121,18 @@ class SalesPageController extends Controller
             $html = $this->renderSalesPageHtml($data, $salesPage->toArray());
             $salesPage->update(['generated_data' => $data, 'generated_html' => $html]);
 
-            return response()->json(['success' => true, 'content' => $newContent]);
+            // Return HTML sekalian supaya iframe bisa update tanpa reload
+            return response()->json([
+                'success' => true,
+                'content' => $newContent,
+                'html'    => $html,
+            ]);
 
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Pastikan semua key yang harusnya array tetap array.
-     * Mencegah "Cannot access offset of type string on string"
-     * ketika data dari DB di-cast ulang dengan tipe yang salah.
-     */
     private function normalizeData(array $data): array
     {
         $data['benefits']     = is_array($data['benefits']     ?? null) ? $data['benefits']     : [];
@@ -143,72 +140,71 @@ class SalesPageController extends Controller
         $data['social_proof'] = is_array($data['social_proof'] ?? null) ? $data['social_proof'] : [];
         $data['pricing']      = is_array($data['pricing']      ?? null) ? $data['pricing']      : [];
         $data['cta']          = is_array($data['cta']          ?? null) ? $data['cta']          : [];
-
         return $data;
     }
 
     private function renderSalesPageHtml(array $data, array $product): string
     {
-        // Normalize dulu sebelum render
         $data = $this->normalizeData($data);
 
         $style = $product['style'] ?? 'modern';
         $colors = match($style) {
-            'minimal' => ['primary' => '#111111', 'accent' => '#0066ff', 'bg' => '#ffffff'],
-            'bold'    => ['primary' => '#1a0533', 'accent' => '#ff3d00', 'bg' => '#0f0f0f'],
-            default   => ['primary' => '#0f172a', 'accent' => '#6366f1', 'bg' => '#f8fafc'],
+            'minimal' => ['primary' => '#0a0a0a', 'accent' => '#0057ff', 'bg' => '#fafafa', 'card' => '#ffffff', 'muted' => '#6b7280'],
+            'bold'    => ['primary' => '#ffffff', 'accent' => '#ff2d2d', 'bg' => '#080808', 'card' => '#111111', 'muted' => '#888888'],
+            default   => ['primary' => '#0f172a', 'accent' => '#6c63ff', 'bg' => '#f8f7ff', 'card' => '#ffffff', 'muted' => '#64748b'],
         };
 
-        // String fields — guard semua akses langsung ke $data
-        $headline      = is_string($data['headline']            ?? null) ? $data['headline']            : '';
-        $sub_headline  = is_string($data['sub_headline']        ?? null) ? $data['sub_headline']        : '';
-        $product_desc  = is_string($data['product_description'] ?? null) ? $data['product_description'] : '';
-        $seo_desc      = is_string($data['seo_meta_description']?? null) ? $data['seo_meta_description']: '';
+        $headline      = is_string($data['headline']             ?? null) ? htmlspecialchars($data['headline'])             : '';
+        $sub_headline  = is_string($data['sub_headline']         ?? null) ? htmlspecialchars($data['sub_headline'])         : '';
+        $product_desc  = is_string($data['product_description']  ?? null) ? htmlspecialchars($data['product_description'])  : '';
+        $seo_desc      = is_string($data['seo_meta_description'] ?? null) ? htmlspecialchars($data['seo_meta_description']) : '';
+        $product_name  = htmlspecialchars($product['product_name'] ?? '');
 
-        // Benefits
         $benefits = collect($data['benefits'])->map(fn($b) =>
             is_array($b)
                 ? "<div class='benefit-card'>
-                    <div class='benefit-icon'>{$b['icon']}</div>
-                    <div class='benefit-title'>{$b['title']}</div>
-                    <div class='benefit-desc'>{$b['description']}</div>
+                    <div class='benefit-icon'>" . htmlspecialchars($b['icon'] ?? '⭐') . "</div>
+                    <div class='benefit-title'>" . htmlspecialchars($b['title'] ?? '') . "</div>
+                    <div class='benefit-desc'>" . htmlspecialchars($b['description'] ?? '') . "</div>
                    </div>"
-                : "<div class='benefit-card'><div class='benefit-desc'>{$b}</div></div>"
+                : "<div class='benefit-card'><div class='benefit-desc'>" . htmlspecialchars($b) . "</div></div>"
         )->implode('');
 
-        // Features
         $features = collect($data['features'])->map(fn($f) =>
             is_array($f)
                 ? "<div class='feature-item'>
                     <span class='feature-check'>✓</span>
-                    <div><strong>{$f['name']}</strong> — {$f['detail']}</div>
+                    <div><strong>" . htmlspecialchars($f['name'] ?? '') . "</strong> — " . htmlspecialchars($f['detail'] ?? '') . "</div>
                    </div>"
-                : "<div class='feature-item'><span class='feature-check'>✓</span><div>{$f}</div></div>"
+                : "<div class='feature-item'><span class='feature-check'>✓</span><div>" . htmlspecialchars($f) . "</div></div>"
         )->implode('');
 
-        // Testimonials
         $testimonials = collect($data['social_proof'])->map(fn($t) =>
             is_array($t)
                 ? "<div class='testimonial'>
-                    <div class='testimonial-quote'>\"{$t['quote']}\"</div>
-                    <div class='testimonial-author'><strong>{$t['name']}</strong> · {$t['role']}</div>
+                    <div class='stars'>★★★★★</div>
+                    <div class='testimonial-quote'>\"" . htmlspecialchars($t['quote'] ?? '') . "\"</div>
+                    <div class='testimonial-author'><strong>" . htmlspecialchars($t['name'] ?? '') . "</strong> · " . htmlspecialchars($t['role'] ?? '') . "</div>
                    </div>"
-                : "<div class='testimonial'><div class='testimonial-quote'>{$t}</div></div>"
+                : "<div class='testimonial'><div class='stars'>★★★★★</div><div class='testimonial-quote'>" . htmlspecialchars($t) . "</div></div>"
         )->implode('');
 
-        // Pricing
-        $pricing_price = $data['pricing']['price'] ?? '';
-        $pricing_note  = $data['pricing']['note']  ?? '';
+        $pricing_price = htmlspecialchars($data['pricing']['price'] ?? '');
+        $pricing_note  = htmlspecialchars($data['pricing']['note']  ?? '');
         $includes = collect($data['pricing']['includes'] ?? [])->map(fn($i) =>
-            "<li>✓ {$i}</li>"
+            "<li><span>✓</span> " . htmlspecialchars($i) . "</li>"
         )->implode('');
 
-        // CTA
-        $cta_primary   = is_array($data['cta']) ? ($data['cta']['primary_text']   ?? '') : (string)($data['cta'] ?? '');
-        $cta_secondary = is_array($data['cta']) ? ($data['cta']['secondary_text'] ?? '') : '';
+        $cta_primary   = is_array($data['cta']) ? htmlspecialchars($data['cta']['primary_text']   ?? '') : htmlspecialchars((string)($data['cta'] ?? ''));
+        $cta_secondary = is_array($data['cta']) ? htmlspecialchars($data['cta']['secondary_text'] ?? '') : '';
 
-        // Product name
-        $product_name = $product['product_name'] ?? '';
+        $font_pair = match($style) {
+            'minimal' => ['display' => 'DM Serif Display', 'body' => 'DM Sans'],
+            'bold'    => ['display' => 'Bebas Neue', 'body' => 'Inter'],
+            default   => ['display' => 'Syne', 'body' => 'DM Sans'],
+        };
+
+        $google_fonts = "https://fonts.googleapis.com/css2?family={$font_pair['display']}:wght@400;700&family={$font_pair['body']}:wght@300;400;500;600&display=swap";
 
         return <<<HTML
 <!DOCTYPE html>
@@ -218,73 +214,426 @@ class SalesPageController extends Controller
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{$headline}</title>
 <meta name="description" content="{$seo_desc}">
+<link href="{$google_fonts}" rel="stylesheet">
 <style>
+  :root {
+    --primary: {$colors['primary']};
+    --accent: {$colors['accent']};
+    --bg: {$colors['bg']};
+    --card: {$colors['card']};
+    --muted: {$colors['muted']};
+    --font-display: '{$font_pair['display']}', serif;
+    --font-body: '{$font_pair['body']}', sans-serif;
+    --radius: 20px;
+    --shadow: 0 4px 32px rgba(0,0,0,0.08);
+  }
+
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background:{$colors['bg']}; color:{$colors['primary']}; }
-  .hero { background: linear-gradient(135deg, {$colors['primary']}, {$colors['accent']}); color:white; padding:80px 20px; text-align:center; }
-  .hero h1 { font-size:clamp(2rem,5vw,3.5rem); font-weight:800; line-height:1.2; max-width:800px; margin:0 auto 20px; }
-  .hero p { font-size:1.2rem; opacity:0.9; max-width:600px; margin:0 auto; }
-  .section { padding:60px 20px; max-width:1100px; margin:0 auto; }
-  .section-title { text-align:center; font-size:2rem; font-weight:700; margin-bottom:40px; }
-  .benefits-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:24px; }
-  .benefit-card { background:white; border-radius:16px; padding:28px; box-shadow:0 4px 20px rgba(0,0,0,0.06); text-align:center; }
-  .benefit-icon { font-size:2.5rem; margin-bottom:12px; }
-  .benefit-title { font-size:1.1rem; font-weight:700; margin-bottom:8px; }
-  .benefit-desc { color:#64748b; font-size:0.95rem; line-height:1.5; }
-  .features-section { background:white; border-radius:20px; padding:40px; margin:20px 0; box-shadow:0 4px 20px rgba(0,0,0,0.06); }
-  .feature-item { display:flex; gap:16px; align-items:flex-start; padding:12px 0; border-bottom:1px solid #f1f5f9; }
-  .feature-item:last-child { border-bottom:none; }
-  .feature-check { color:{$colors['accent']}; font-weight:700; font-size:1.2rem; flex-shrink:0; margin-top:2px; }
-  .testimonials { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
-  .testimonial { background:white; border-radius:16px; padding:28px; box-shadow:0 4px 20px rgba(0,0,0,0.06); border-left:4px solid {$colors['accent']}; }
-  .testimonial-quote { font-style:italic; color:#334155; line-height:1.6; margin-bottom:16px; }
-  .testimonial-author { font-size:0.9rem; color:#64748b; }
-  .pricing-box { background: linear-gradient(135deg, {$colors['primary']}, {$colors['accent']}); color:white; border-radius:24px; padding:48px; text-align:center; max-width:500px; margin:0 auto; }
-  .pricing-price { font-size:3rem; font-weight:800; margin:20px 0; }
-  .pricing-includes { list-style:none; text-align:left; max-width:280px; margin:20px auto; }
-  .pricing-includes li { padding:6px 0; opacity:0.9; }
-  .cta-btn { display:inline-block; background:white; color:{$colors['accent']}; font-size:1.2rem; font-weight:800; padding:18px 48px; border-radius:50px; cursor:pointer; margin-top:24px; text-decoration:none; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
-  .cta-note { opacity:0.8; margin-top:12px; font-size:0.9rem; }
-  .product-desc-section { background:#f1f5f9; padding:60px 20px; text-align:center; }
-  .product-desc-text { max-width:700px; margin:0 auto; font-size:1.1rem; line-height:1.8; color:#334155; }
-  @media(max-width:600px) { .hero { padding:50px 16px; } .section { padding:40px 16px; } .pricing-box { padding:32px 20px; } }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--primary);
+    line-height: 1.6;
+  }
+
+  /* Navbar */
+  .navbar {
+    position: sticky; top:0; z-index:100;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 16px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .navbar-brand {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--primary);
+    letter-spacing: -0.3px;
+  }
+  .navbar-cta {
+    background: var(--accent);
+    color: white;
+    padding: 8px 20px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  .navbar-cta:hover { opacity: 0.85; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--accent) 60%, var(--primary)) 100%);
+    color: white;
+    padding: 100px 40px 80px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 20%, rgba(255,255,255,0.05) 0%, transparent 50%);
+  }
+  .hero-inner { position: relative; z-index:1; max-width: 800px; margin: 0 auto; }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border-radius: 50px;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 5vw, 4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 20px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    font-size: 1.15rem;
+    opacity: 0.85;
+    max-width: 560px;
+    margin: 0 auto 36px;
+  }
+  .hero-cta {
+    display: inline-block;
+    background: white;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 16px 40px;
+    border-radius: 50px;
+    text-decoration: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+
+  /* Stats bar */
+  .stats-bar {
+    background: var(--card);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 24px 40px;
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    flex-wrap: wrap;
+  }
+  .stat-item { text-align: center; }
+  .stat-number {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+  /* Sections */
+  .section {
+    padding: 80px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 3vw, 2.8rem);
+    font-weight: 700;
+    margin-bottom: 16px;
+    letter-spacing: -0.3px;
+  }
+  .section-subtitle {
+    font-size: 1.05rem;
+    color: var(--muted);
+    max-width: 560px;
+    margin-bottom: 48px;
+  }
+
+  /* Description */
+  .desc-section {
+    background: var(--card);
+    padding: 80px 40px;
+    text-align: center;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .desc-text {
+    max-width: 680px;
+    margin: 0 auto;
+    font-size: 1.1rem;
+    line-height: 1.85;
+    color: var(--muted);
+  }
+
+  /* Benefits */
+  .benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 20px;
+  }
+  .benefit-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(0,0,0,0.04);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .benefit-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+  .benefit-icon { font-size: 2.2rem; margin-bottom: 14px; }
+  .benefit-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+  .benefit-desc { font-size: 0.9rem; color: var(--muted); line-height: 1.55; }
+
+  /* Features */
+  .features-wrap {
+    background: var(--card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(0,0,0,0.04);
+  }
+  .feature-item {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 20px 28px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    transition: background 0.15s;
+  }
+  .feature-item:last-child { border-bottom: none; }
+  .feature-item:hover { background: rgba(0,0,0,0.015); }
+  .feature-check {
+    width: 24px; height: 24px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* Testimonials */
+  .testimonials-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .testimonial {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(0,0,0,0.04);
+    position: relative;
+  }
+  .testimonial::before {
+    content: '"';
+    font-family: var(--font-display);
+    font-size: 5rem;
+    color: var(--accent);
+    opacity: 0.15;
+    position: absolute;
+    top: 8px; left: 20px;
+    line-height: 1;
+  }
+  .stars { color: #f59e0b; font-size: 0.85rem; margin-bottom: 12px; letter-spacing: 2px; }
+  .testimonial-quote { font-size: 0.95rem; color: var(--muted); line-height: 1.65; margin-bottom: 16px; font-style: italic; }
+  .testimonial-author { font-size: 0.85rem; font-weight: 600; }
+
+  /* Pricing */
+  .pricing-section {
+    background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--accent) 50%, var(--primary)));
+    padding: 80px 40px;
+    text-align: center;
+  }
+  .pricing-box {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 28px;
+    padding: 56px 48px;
+    max-width: 520px;
+    margin: 0 auto;
+    backdrop-filter: blur(10px);
+    color: white;
+  }
+  .pricing-product { font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; margin-bottom: 8px; }
+  .pricing-price {
+    font-family: var(--font-display);
+    font-size: 4rem;
+    font-weight: 700;
+    margin: 16px 0 8px;
+    letter-spacing: -1px;
+  }
+  .pricing-note { opacity: 0.65; font-size: 0.9rem; margin-bottom: 28px; }
+  .pricing-includes {
+    list-style: none;
+    text-align: left;
+    max-width: 280px;
+    margin: 0 auto 36px;
+  }
+  .pricing-includes li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0;
+    font-size: 0.9rem;
+    opacity: 0.9;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .pricing-includes li:last-child { border-bottom: none; }
+  .pricing-includes span { color: #4ade80; font-weight: 700; }
+  .cta-btn {
+    display: inline-block;
+    background: white;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 1rem;
+    padding: 18px 52px;
+    border-radius: 50px;
+    text-decoration: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  .cta-note { margin-top: 14px; opacity: 0.6; font-size: 0.85rem; }
+
+  /* Footer */
+  .footer {
+    background: var(--primary);
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 24px;
+    font-size: 0.8rem;
+  }
+
+  @media(max-width: 768px) {
+    .hero { padding: 70px 20px 60px; }
+    .section { padding: 60px 20px; }
+    .stats-bar { gap: 30px; padding: 20px; }
+    .navbar { padding: 14px 20px; }
+    .pricing-box { padding: 40px 24px; }
+    .pricing-price { font-size: 3rem; }
+  }
 </style>
 </head>
 <body>
-  <div class="hero">
-    <h1>{$headline}</h1>
-    <p>{$sub_headline}</p>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-brand">{$product_name}</div>
+    <a href="#pricing" class="navbar-cta">{$cta_primary}</a>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">✦ New Launch</div>
+      <h1>{$headline}</h1>
+      <p>{$sub_headline}</p>
+      <a href="#pricing" class="hero-cta">{$cta_primary} →</a>
+    </div>
+  </section>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-number">500+</div>
+      <div class="stat-label">Happy Customers</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">4.9★</div>
+      <div class="stat-label">Average Rating</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">24/7</div>
+      <div class="stat-label">Support</div>
+    </div>
   </div>
 
-  <div class="product-desc-section">
-    <div class="product-desc-text">{$product_desc}</div>
+  <!-- Description -->
+  <div class="desc-section">
+    <p class="desc-text">{$product_desc}</p>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">Why Choose Us</h2>
+  <!-- Benefits -->
+  <div class="section" data-animate>
+    <div class="section-label">Why Choose Us</div>
+    <div class="section-title">Built for Results</div>
+    <p class="section-subtitle">Everything you need, nothing you don't.</p>
     <div class="benefits-grid">{$benefits}</div>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">What's Inside</h2>
-    <div class="features-section">{$features}</div>
+  <!-- Features -->
+  <div class="section" data-animate>
+    <div class="section-label">What's Included</div>
+    <div class="section-title">Every Feature You Need</div>
+    <p class="section-subtitle">Packed with tools that actually make a difference.</p>
+    <div class="features-wrap">{$features}</div>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">What Our Customers Say</h2>
-    <div class="testimonials">{$testimonials}</div>
+  <!-- Testimonials -->
+  <div class="section" data-animate>
+    <div class="section-label">Social Proof</div>
+    <div class="section-title">Real People, Real Results</div>
+    <p class="section-subtitle">Don't take our word for it.</p>
+    <div class="testimonials-grid">{$testimonials}</div>
   </div>
 
-  <div class="section">
+  <!-- Pricing -->
+  <section class="pricing-section" id="pricing">
     <div class="pricing-box">
-      <h2 style="font-size:1.5rem">{$product_name}</h2>
+      <div class="pricing-product">{$product_name}</div>
       <div class="pricing-price">{$pricing_price}</div>
-      <p style="opacity:0.8">{$pricing_note}</p>
+      <p class="pricing-note">{$pricing_note}</p>
       <ul class="pricing-includes">{$includes}</ul>
       <a href="#" class="cta-btn">{$cta_primary}</a>
       <p class="cta-note">{$cta_secondary}</p>
     </div>
-  </div>
+  </section>
+
+  <footer class="footer">
+    © 2025 {$product_name}. All rights reserved.
+  </footer>
+
+  <script>
+    // Scroll animation
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+  </script>
 </body>
 </html>
 HTML;
